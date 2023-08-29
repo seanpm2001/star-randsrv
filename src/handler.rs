@@ -11,7 +11,7 @@ use tracing::{debug, instrument};
 use crate::state::{OPRFInstance, OPRFState};
 use ppoprf::ppoprf;
 
-/// Request format for the randomness endpoint
+/// Request structure for the randomness endpoint
 #[derive(Deserialize, Debug)]
 pub struct RandomnessRequest {
     /// Array of points to evaluate
@@ -21,7 +21,7 @@ pub struct RandomnessRequest {
     epoch: Option<u8>,
 }
 
-/// Response format for the randomness endpoint
+/// Response structure for the randomness endpoint
 #[derive(Serialize, Debug)]
 pub struct RandomnessResponse {
     /// Resulting points from the OPRF valuation
@@ -32,24 +32,32 @@ pub struct RandomnessResponse {
     epoch: u8,
 }
 
-/// Response format for the info endpoint
+/// Response structure for the info endpoint
 /// Rename fields to match the earlier golang implementation.
 #[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct InfoResponse {
     /// ServerPublicKey used to verify zero-knowledge proof
-    #[serde(rename = "publicKey")]
     public_key: String,
     /// Currently active randomness epoch
-    #[serde(rename = "currentEpoch")]
     current_epoch: u8,
     /// Timestamp of the next epoch rotation
     /// This should be a string in RFC 3339 format,
     /// e.g. 2023-03-14T16:33:05Z.
-    #[serde(rename = "nextEpochTime")]
     next_epoch_time: Option<String>,
     /// Maximum number of points accepted in a single request
-    #[serde(rename = "maxPoints")]
     max_points: usize,
+}
+
+/// Response structure for the "list instances" endpoint.
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ListInstancesResponse {
+    /// A list of available instances on the server.
+    instances: Vec<String>,
+    /// The default instance on this server.
+    /// A requests made to /info and /randomness will utilize this instance.
+    default_instance: String,
 }
 
 /// Response returned to report error conditions
@@ -205,4 +213,12 @@ pub async fn specific_instance_info(
     Path(instance_name): Path<String>,
 ) -> Result<Json<InfoResponse>> {
     info(state, instance_name).await
+}
+
+// Lists all available instances, as well as the default instance
+pub async fn list_instances(State(state): State<OPRFState>) -> Result<Json<ListInstancesResponse>> {
+    Ok(Json(ListInstancesResponse {
+        instances: state.instances.keys().cloned().collect(),
+        default_instance: state.default_instance.clone(),
+    }))
 }
